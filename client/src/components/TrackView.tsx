@@ -131,33 +131,47 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type }) => {
 						<p className='text-gray-500'>{displayDetails}</p>
 					</div>
 
-					<div className='grid grid-cols-2 gap-4 text-sm'>
-						<div>
-							<p className='text-gray-500'>Format</p>
-							<p className='font-medium'>
-								{track.format
-									? `${track.format.toUpperCase()}${
-											track.bitrate
-												? `, ${Math.round(track.bitrate / 1000)}kbps`
-												: ""
-									  }`
-									: "Unknown"}
-							</p>
+					<div className='flex flex-col gap-2 text-sm'>
+						<div className='flex flex-wrap items-center gap-4'>
+							<div className='flex items-center gap-2'>
+								<span className='text-gray-500'>Format:</span>
+								<span className='font-medium'>
+									{track.format
+										? `${track.format.toUpperCase()}${
+												track.bitrate
+													? `, ${Math.round(track.bitrate / 1000)}kbps`
+													: ""
+										  }`
+										: "Unknown"}
+								</span>
+							</div>
+							<div className='flex items-center gap-2'>
+								<span className='text-gray-500'>Key:</span>
+								<span className='font-medium'>{track.key || "Unknown"}</span>
+							</div>
 						</div>
-						<div>
-							<p className='text-gray-500'>Key</p>
-							<p className='font-medium'>{track.key || "Unknown"}</p>
+						<div className='flex flex-wrap items-center gap-4'>
+							<div className='flex items-center gap-2'>
+								<span className='text-gray-500'>Tempo:</span>
+								<span className='font-medium'>
+									{track.bpm ? `${track.bpm} BPM` : "Unknown"}
+								</span>
+							</div>
+							<div className='flex items-center gap-2'>
+								<span className='text-gray-500'>Duration:</span>
+								<span className='font-medium'>
+									{formatDuration(displayDuration)}
+								</span>
+							</div>
 						</div>
-						<div>
-							<p className='text-gray-500'>Tempo</p>
-							<p className='font-medium'>
-								{track.bpm ? `${track.bpm} BPM` : "Unknown"}
-							</p>
-						</div>
-						<div>
-							<p className='text-gray-500'>Duration</p>
-							<p className='font-medium'>{formatDuration(displayDuration)}</p>
-						</div>
+						{type === "extended" && (
+							<div className='flex items-center gap-2'>
+								<span className='text-gray-500'>Intro Length:</span>
+								<span className='font-medium'>
+									{track.settings?.introLength} bars
+								</span>
+							</div>
+						)}
 					</div>
 				</div>
 			</div>
@@ -170,28 +184,65 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type }) => {
 						<div className='waveform-bars flex items-center h-full p-4'>
 							{Array(type === "original" ? 120 : 150)
 								.fill(0)
-								.map((_, i) => (
-									<div
-										key={i}
-										className='waveform-bar bg-gradient-to-t from-primary to-purple-600'
-										style={{
-											height: `${Math.floor(Math.random() * 70 + 10)}px`,
-											width: "3px",
-											margin: "0 1px",
-										}}></div>
-								))}
+								.map((_, i) => {
+									const isIntroSection =
+										type === "extended" &&
+										i <=
+											((track.settings?.introLength || 16) / track.bpm) *
+												60 *
+												(150 / duration);
+									const isCurrentlyPlaying =
+										i / (type === "original" ? 120 : 150) <=
+										currentTime / duration;
+
+									return (
+										<div
+											key={i}
+											className={`waveform-bar transition-colors duration-300`}
+											style={{
+												height: `${Math.floor(Math.random() * 70 + 10)}px`,
+												width: "3px",
+												margin: "0 1px",
+												background:
+													type === "extended"
+														? isCurrentlyPlaying
+															? isIntroSection
+																? "linear-gradient(to top, #10b981, #34d399)" // emerald gradient for playing intro
+																: "linear-gradient(to top, #7c3aed, #a78bfa)" // purple gradient for playing main
+															: isIntroSection
+															? "linear-gradient(to top, #064e3b, #065f46)" // darker emerald for unplayed intro
+															: "linear-gradient(to top, #4c1d95, #5b21b6)" // darker purple for unplayed main
+														: isCurrentlyPlaying
+														? "linear-gradient(to top, #7c3aed, #a78bfa)"
+														: "linear-gradient(to top, #4b5563, #6b7280)",
+											}}></div>
+									);
+								})}
 						</div>
 					</div>
 				</div>
 
 				<div
-					className='player-progress mt-2 mb-2 h-2 bg-gray-200 rounded-full overflow-hidden cursor-pointer'
+					className='player-progress mt-2 mb-2 h-2 bg-gray-200 rounded-full overflow-hidden cursor-pointer relative'
 					onClick={handleProgressClick}>
+					{type === "extended" && (
+						<div
+							className='h-full bg-gradient-to-r from-emerald-500 to-emerald-400 absolute'
+							style={{
+								width: `${
+									((track.settings?.introLength || 16) / track.bpm) *
+									60 *
+									(100 / duration)
+								}%`,
+							}}
+						/>
+					)}
 					<div
-						className='h-full bg-gradient-to-r from-primary to-purple-600 rounded-full'
+						className='h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-300'
 						style={{
 							width: `${(currentTime / (duration || 1)) * 100}%`,
-						}}></div>
+						}}
+					/>
 				</div>
 
 				<div className='player-controls flex items-center'>
@@ -218,124 +269,9 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type }) => {
 				</div>
 			</div>
 
-			{type === "extended" && (
-				<div className='mt-4'>
-					<button
-						className='inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50'
-						onClick={async () => {
-							// Force status to processing immediately for UI feedback
-							try {
-								// Start loading state
-								setIsProcessing(true);
-								track.status = "processing";
-								// Start regeneration
-								const processResponse = await fetch(
-									`/api/tracks/${track.id}/process`,
-									{
-										method: "POST",
-										headers: {
-											"Content-Type": "application/json",
-										},
-										body: JSON.stringify(track.settings),
-									}
-								);
-
-								if (!processResponse.ok) {
-									throw new Error("Failed to start regeneration");
-								}
-
-								// Start polling for status
-								const checkStatus = async () => {
-									const statusResponse = await fetch(
-										`/api/tracks/${track.id}/status`
-									);
-									const data = await statusResponse.json();
-
-									if (data.status === "completed") {
-										// Reload audio with new extended version
-										console.log(data.status);
-										if (audioRef.current) {
-											audioRef.current.src = `/api/audio/${track.id}/extended`;
-											await audioRef.current.load();
-											// Reset processing states after load
-											track.status = "completed";
-											setIsProcessing(false);
-										}
-										// Show success toast
-										toast({
-											title: "Success",
-											description: "New extended mix generated successfully!",
-											duration: 5000,
-										});
-										return true;
-									}
-									return false;
-								};
-
-								// Poll every 2 seconds until completed
-								const intervalId = setInterval(async () => {
-									const isCompleted = await checkStatus();
-									if (isCompleted) {
-										clearInterval(intervalId);
-									}
-								}, 2000);
-							} catch (error) {
-								console.error("Regeneration error:", error);
-								toast({
-									title: "Error",
-									description: "Failed to regenerate extended mix",
-									variant: "destructive",
-									duration: 5000,
-								});
-								setIsProcessing(false); // Reset processing state on error
-							}
-						}}
-						disabled={track.status === "processing" || isProcessing} // Disable button while processing
-					>
-						{isProcessing ? ( // Use isProcessing state for button display
-							<>
-								<svg
-									className='animate-spin -ml-1 mr-2 h-4 w-4 text-white'
-									xmlns='http://www.w3.org/2000/svg'
-									fill='none'
-									viewBox='0 0 24 24'>
-									<circle
-										className='opacity-25'
-										cx='12'
-										cy='12'
-										r='10'
-										stroke='currentColor'
-										strokeWidth='4'></circle>
-									<path
-										className='opacity-75'
-										fill='currentColor'
-										d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'></path>
-								</svg>
-								Processing...
-							</>
-						) : (
-							<>
-								<span className='material-icons text-sm mr-1'>autorenew</span>
-								Regenerate Extended Mix
-							</>
-						)}
-					</button>
-				</div>
-			)}
-
 			{type === "extended" && track.status === "completed" && (
 				<div className='mt-4'>
-					<h4 className='font-medium mb-2'>Track Structure</h4>
-					<div className='h-16 w-full  rounded overflow-hidden flex'>
-						<div className='w-1/5 bg-primary flex-shrink-0 flex items-center justify-center text-xs text-white'>
-							<span>{track.settings?.introLength}-bar Intro</span>
-						</div>
-						<div className='w-3/5 bg-gray-600 flex-shrink-0 flex items-center justify-center text-xs text-white rounded-sm'>
-							<span>Main Song</span>
-						</div>
-					</div>
-
-					<div className='mt-6 flex flex-wrap gap-2'>
+					<div className='flex flex-wrap items-center gap-2'>
 						<a
 							href={`/api/tracks/${track.id}/download`}
 							className='inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary'
@@ -343,6 +279,108 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type }) => {
 							<span className='material-icons text-sm mr-1'>download</span>
 							Download Extended Mix
 						</a>
+						<button
+							className='inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50'
+							onClick={async () => {
+								try {
+									setIsProcessing(true);
+									const processResponse = await fetch(
+										`/api/tracks/${track.id}/process`,
+										{
+											method: "POST",
+											headers: {
+												"Content-Type": "application/json",
+											},
+											body: JSON.stringify(track.settings),
+										}
+									);
+
+									if (!processResponse.ok) {
+										throw new Error("Failed to start regeneration");
+									}
+
+									const checkStatus = async () => {
+										const statusResponse = await fetch(
+											`/api/tracks/${track.id}/status`
+										);
+										const data = await statusResponse.json();
+
+										if (data.status === "completed") {
+											if (audioRef.current) {
+												audioRef.current.src = `/api/audio/${track.id}/extended`;
+												await audioRef.current.load();
+											}
+											setIsProcessing(false);
+											toast({
+												title: "Success",
+												description: "New extended mix generated successfully!",
+												duration: 5000,
+											});
+											return true;
+										} else if (data.status === "processing") {
+											return false;
+										} else {
+											throw new Error("Processing failed");
+										}
+									};
+
+									const intervalId = setInterval(async () => {
+										try {
+											const isCompleted = await checkStatus();
+											if (isCompleted) {
+												clearInterval(intervalId);
+											}
+										} catch (error) {
+											clearInterval(intervalId);
+											setIsProcessing(false);
+											toast({
+												title: "Error",
+												description: "Failed to regenerate extended mix",
+												variant: "destructive",
+												duration: 5000,
+											});
+										}
+									}, 2000);
+								} catch (error) {
+									console.error("Regeneration error:", error);
+									toast({
+										title: "Error",
+										description: "Failed to regenerate extended mix",
+										variant: "destructive",
+										duration: 5000,
+									});
+									setIsProcessing(false);
+								}
+							}}
+							disabled={track.status === "processing" || isProcessing}>
+							{isProcessing ? (
+								<>
+									<svg
+										className='animate-spin -ml-1 mr-2 h-4 w-4 text-white'
+										xmlns='http://www.w3.org/2000/svg'
+										fill='none'
+										viewBox='0 0 24 24'>
+										<circle
+											className='opacity-25'
+											cx='12'
+											cy='12'
+											r='10'
+											stroke='currentColor'
+											strokeWidth='4'></circle>
+										<path
+											className='opacity-75'
+											fill='currentColor'
+											d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'></path>
+									</svg>
+									Processing...
+								</>
+							) : (
+								<>
+									<span className='material-icons text-sm mr-1'>autorenew</span>
+									Regenerate Extended Mix
+								</>
+							)}
+						</button>
 					</div>
 				</div>
 			)}
