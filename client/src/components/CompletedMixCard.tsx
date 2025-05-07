@@ -45,7 +45,8 @@ const CompletedMixCard: React.FC<CompletedMixCardProps> = ({
 
 				<div className='flex-1 text-center sm:text-left'>
 					<h3 className='text-lg font-bold'>
-						{track.originalFilename.replace(/\.[^/.]+$/, "")} (Extended Mix)
+						{track.originalFilename.replace(/\.[^/.]+$/, "")} (Extended Mix v$
+						{track.extendedPaths?.length || 1})
 						{track.originalFilename.match(/\.[^/.]+$/)?.[0] || ""}
 					</h3>
 					<p className='text-gray-500 mb-2'>

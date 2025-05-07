@@ -21,15 +21,16 @@ export const audioTracks = pgTable("audio_tracks", {
 	id: serial("id").primaryKey(),
 	originalFilename: text("original_filename").notNull(),
 	originalPath: text("original_path").notNull(),
-	extendedPath: text("extended_path"),
+	extendedPaths: jsonb("extended_paths").default("[]"),
 	duration: integer("duration"),
-	extendedDuration: integer("extended_duration"),
+	extendedDurations: jsonb("extended_durations").default("[]"),
 	bpm: integer("bpm"),
 	key: text("key"),
 	format: text("format"),
 	bitrate: integer("bitrate"),
 	status: text("status").notNull().default("uploaded"),
 	settings: jsonb("settings"),
+	versionCount: integer("version_count").notNull().default(1),
 	userId: integer("user_id").references(() => users.id),
 });
 

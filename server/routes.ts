@@ -183,14 +183,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			});
 
 			// Generate a filename for the extended version
-			const extFileName =
-				path.basename(
-					track.originalFilename,
-					path.extname(track.originalFilename)
-				) +
-				"_extended" +
-				path.extname(track.originalFilename);
-			const outputPath = path.join(resultDir, extFileName);
+			const outputBase = path.basename(
+				track.originalFilename,
+				path.extname(track.originalFilename)
+			);
+			const fileExt = path.extname(track.originalFilename);
+			const version = track.extendedPaths?.length || 0;
+			const outputPath = path.join(
+				resultDir,
+				`${outputBase}_extended_v${version + 1}${fileExt}`
+			);
 
 			// Execute the Python script for audio processing
 			const options = {
@@ -242,11 +244,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								}
 							}
 
-							// Update track with completed status and path to extended version
+							// Update track with completed status and add new version
+							const track = await storage.getAudioTrack(id);
+							const currentPaths = track?.extendedPaths || [];
+							const currentDurations = track?.extendedDurations || [];
+
 							return storage.updateAudioTrack(id, {
 								status: "completed",
-								extendedPath: outputPath,
-								extendedDuration: extendedDuration,
+								extendedPaths: [...currentPaths, outputPath],
+								extendedDurations: [...currentDurations, extendedDuration],
+								versionCount: (track.versionCount || 1) + 1,
 							});
 						}
 					);
@@ -305,8 +312,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: "Track not found" });
 			}
 
-			const filePath =
-				type === "original" ? track.originalPath : track.extendedPath;
+			let filePath = track.originalPath;
+			if (type === "extended") {
+				const version = parseInt(req.query.version as string) || 0;
+				const extendedPaths = track.extendedPaths || [];
+				filePath = extendedPaths[version];
+			}
 
 			if (!filePath) {
 				return res
@@ -367,11 +378,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: "Track not found" });
 			}
 
-			if (!track.extendedPath) {
+			const version = parseInt(req.query.version as string) || 0;
+			const extendedPaths = track.extendedPaths || [];
+
+			if (!extendedPaths[version]) {
 				return res.status(404).json({ message: "Extended version not found" });
 			}
 
-			if (!fs.existsSync(track.extendedPath)) {
+			if (!fs.existsSync(extendedPaths[version])) {
 				return res
 					.status(404)
 					.json({ message: "Extended audio file not found on disk" });
@@ -383,12 +397,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				path.extname(track.originalFilename)
 			);
 
-			// Create download filename
-			const downloadFilename = `${originalNameWithoutExt}_extended${path.extname(
-				track.originalFilename
-			)}`;
+			// Create download filename with version number
+			const downloadFilename = `${originalNameWithoutExt}_extended_v${
+				version + 1
+			}${path.extname(track.originalFilename)}`;
 
-			res.download(track.extendedPath, downloadFilename);
+			res.download(extendedPaths[version], downloadFilename);
 		} catch (error) {
 			console.error("Download error:", error);
 			return res

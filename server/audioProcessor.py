@@ -164,7 +164,6 @@ import random
 from pydub import AudioSegment
 
 def create_extended_mix(components, output_path, intro_bars, outro_bars, preserve_vocals, tempo, beat_times, main_song):
-   
     logger.info(f"Creating extended mix with {intro_bars} bars intro and {outro_bars} bars outro")
 
     try:
@@ -175,6 +174,14 @@ def create_extended_mix(components, output_path, intro_bars, outro_bars, preserv
         if len(beat_times) < (intro_beats + outro_beats + 8):
             logger.warning(f"Not enough beats detected ({len(beat_times)}) for requested extension")
             return False
+            
+        # Get version number from filename (expects format like "something_v1.mp3")
+        version = 1
+        if "_v" in output_path:
+            try:
+                version = int(output_path.split("_v")[-1].split(".")[0])
+            except:
+                pass
 
         drums = AudioSegment.from_file(components['drums'])
         bass = AudioSegment.from_file(components['bass'])
@@ -195,11 +202,13 @@ def create_extended_mix(components, output_path, intro_bars, outro_bars, preserv
         full_outro_other = pick_loudest_bars(other, beat_times_ms, bars=outro_bars).apply_gain(9)
         outro_vocals = pick_loudest_bars(vocals, beat_times_ms, bars=outro_bars)
 
+        # Set seed based on version for consistent shuffling per version
+        random.seed(version * 42)
+        
         # Shuffle order for intro
         intro_labels = ['drums', 'other', 'drums', 'vocals']
         intro_segments = [full_intro_drums, full_intro_other, full_intro_drums, intro_vocals]
         intro_zipped = list(zip(intro_labels, intro_segments))
-        random.shuffle(intro_zipped)
         random.shuffle(intro_zipped)
         intro_components = [seg for (label, seg) in intro_zipped]
         shuffled_intro_order = [label for (label, seg) in intro_zipped]
@@ -211,6 +220,9 @@ def create_extended_mix(components, output_path, intro_bars, outro_bars, preserv
         random.shuffle(outro_zipped)
         outro_components = [seg for (label, seg) in outro_zipped]
         shuffled_outro_order = [label for (label, seg) in outro_zipped]
+        
+        # Reset random seed
+        random.seed()
 
         # Mix creation
         full_intro = sum(intro_components).fade_in(2000)
@@ -218,6 +230,7 @@ def create_extended_mix(components, output_path, intro_bars, outro_bars, preserv
 
         main_audio = main_song
         extended_mix = full_intro.append(main_audio, crossfade=500)
+         
         extended_mix.export(output_path, format=os.path.splitext(output_path)[1][1:])
         logger.info(f"Extended mix created successfully and saved to {output_path}")
 
