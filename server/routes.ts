@@ -256,10 +256,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							const track = await storage.getAudioTrack(id);
 							const currentPaths = track?.extendedPaths || [];
 							const currentDurations = track?.extendedDurations || [];
-
+							let extendedPaths = [...currentPaths, outputPath];
+							console.log("extendedPaths:", extendedPaths);
 							return storage.updateAudioTrack(id, {
 								status: "completed",
-								extendedPaths: [...currentPaths, outputPath],
+								extendedPaths: extendedPaths,
 								extendedDurations: [...currentDurations, extendedDuration],
 								versionCount: (track.versionCount || 1) + 1,
 							});

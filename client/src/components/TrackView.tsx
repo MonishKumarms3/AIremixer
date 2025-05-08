@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { AudioTrack } from "@shared/schema";
 import { formatDuration } from "@/lib/audio";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 interface TrackViewProps {
 	track: AudioTrack;
@@ -390,8 +391,15 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 										const data = await statusResponse.json();
 
 										if (data.status === "completed") {
+											// Force refetch track data
 											const updatedTrackResponse = await fetch(
-												`/api/tracks/${track.id}`
+												`/api/tracks/${track.id}`,
+												{
+													headers: {
+														"Cache-Control": "no-cache",
+														Pragma: "no-cache",
+													},
+												}
 											);
 											const updatedTrack = await updatedTrackResponse.json();
 											const newVersion =
@@ -402,12 +410,18 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 												await audioRef.current.load();
 											}
 											setIsProcessing(false);
-											// Update track state by triggering a re-render
-											window.dispatchEvent(
-												new CustomEvent("track-updated", {
-													detail: updatedTrack,
-												})
+
+											// Update React Query cache
+											await queryClient.setQueryData(
+												[`/api/tracks/${track.id}`],
+												updatedTrack
 											);
+											await queryClient.invalidateQueries({
+												queryKey: [`/api/tracks/${track.id}`],
+											});
+											await queryClient.refetchQueries({
+												queryKey: [`/api/tracks/${track.id}`],
+											});
 											toast({
 												title: "Success",
 												description: "New extended mix generated successfully!",
