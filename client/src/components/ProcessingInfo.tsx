@@ -90,13 +90,12 @@ const ProcessingInfo: React.FC<ProcessingInfoProps> = ({
 						steps: newSteps,
 					});
 				} else if (data.status === "completed") {
-					// Processing completed successfully
 					setProcessingState((prev) => ({
+						...prev,
 						progress: 100,
-						status: "Processing complete!",
+						status: "Complete",
 						steps: prev.steps.map((step) => ({ ...step, status: "completed" })),
 					}));
-
 					clearInterval(intervalId);
 					onComplete();
 

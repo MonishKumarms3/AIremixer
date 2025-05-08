@@ -47,15 +47,16 @@ export const insertAudioTrackSchema = createInsertSchema(audioTracks).pick({
 
 export const updateAudioTrackSchema = createInsertSchema(audioTracks)
 	.pick({
-		extendedPath: true,
+		extendedPaths: true,
 		duration: true,
-		extendedDuration: true,
+		extendedDurations: true,
 		bpm: true,
 		key: true,
 		format: true,
 		bitrate: true,
 		status: true,
 		settings: true,
+		versionCount: true,
 	})
 	.partial();
 

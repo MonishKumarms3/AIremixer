@@ -173,6 +173,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: "Track not found" });
 			}
 
+			// Check version limit
+			console.log("Current version count:", track.versionCount);
+			if (track.versionCount > 3) {
+				return res.status(400).json({
+					message: "Maximum version limit (3) reached",
+				});
+			}
+
 			// Validate settings from request
 			const settings = processingSettingsSchema.parse(req.body);
 
