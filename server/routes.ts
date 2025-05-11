@@ -246,6 +246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							if (infoResults && infoResults.length > 0) {
 								try {
 									const audioInfo = JSON.parse(infoResults[0]);
+									console.log("Extended audio info:", audioInfo);
 									extendedDuration = audioInfo.duration || null;
 								} catch (e) {
 									console.error("Error parsing extended audio info:", e);
@@ -258,6 +259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							const currentDurations = track?.extendedDurations || [];
 							let extendedPaths = [...currentPaths, outputPath];
 							console.log("extendedPaths:", extendedPaths);
+
 							return storage.updateAudioTrack(id, {
 								status: "completed",
 								extendedPaths: extendedPaths,

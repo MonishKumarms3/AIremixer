@@ -20,7 +20,9 @@ def get_audio_info(file_path):
     Returns:
         dict: Audio information
     """
+    logger.info(f"Analyzing audio file: {file_path}")
     try:
+        logger.info("Starting audio analysis...")
         # Basic file information
         extension = os.path.splitext(file_path)[1].lower()
         format_type = extension[1:]  # Remove the dot
@@ -67,18 +69,32 @@ def get_audio_info(file_path):
             "bitrate": int(bitrate)
         }
         
+        logger.info(f"Successfully analyzed audio file: {info}")
         return info
     
     except Exception as e:
         logger.error(f"Error analyzing audio file: {str(e)}")
-        # Return basic info if full analysis fails
-        return {
-            "format": os.path.splitext(file_path)[1][1:],
-            "duration": 0,
-            "bpm": 0,
-            "key": "Unknown",
-            "bitrate": 0
-        }
+        try:
+            # Fallback to basic pydub analysis
+            audio = AudioSegment.from_file(file_path)
+            format_type = os.path.splitext(file_path)[1][1:].lower()
+            return {
+                "format": format_type,
+                "duration": int(len(audio) / 1000),  # Convert ms to seconds
+                "bpm": 0,  # Cannot determine BPM in fallback
+                "key": "Unknown",
+                "bitrate": int(audio.frame_rate * audio.sample_width * audio.channels * 8)
+            }
+        except Exception as inner_e:
+            logger.error(f"Fallback analysis failed: {str(inner_e)}")
+            # Return basic info if all analysis fails
+            return {
+                "format": os.path.splitext(file_path)[1][1:],
+                "duration": 0,
+                "bpm": 0,
+                "key": "Unknown",
+                "bitrate": 0
+            }
 
 if __name__ == "__main__":
     # Check if file path is provided
