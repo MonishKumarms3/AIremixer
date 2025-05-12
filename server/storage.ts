@@ -1,91 +1,88 @@
-import { 
-  users, 
-  audioTracks, 
-  type User, 
-  type InsertUser, 
-  type AudioTrack, 
-  type InsertAudioTrack, 
-  type UpdateAudioTrack
+/** @format */
+
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import {
+	users,
+	audioTracks,
+	type User,
+	type InsertUser,
+	type AudioTrack,
+	type InsertAudioTrack,
+	type UpdateAudioTrackc,
 } from "@shared/schema";
+import { eq } from "drizzle-orm";
+
+const pool = new Pool({
+	connectionString: "postgresql://postgres:7372@localhost:5432/airemixer",
+});
+
+const db = drizzle(pool);
 
 export interface IStorage {
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  
-  getAudioTrack(id: number): Promise<AudioTrack | undefined>;
-  createAudioTrack(track: InsertAudioTrack): Promise<AudioTrack>;
-  updateAudioTrack(id: number, update: UpdateAudioTrack): Promise<AudioTrack | undefined>;
-  getAudioTracksByUserId(userId: number): Promise<AudioTrack[]>;
+	getUser(id: number): Promise<User | undefined>;
+	getUserByUsername(username: string): Promise<User | undefined>;
+	createUser(user: InsertUser): Promise<User>;
+	getAudioTrack(id: number): Promise<AudioTrack | undefined>;
+	createAudioTrack(track: InsertAudioTrack): Promise<AudioTrack>;
+	updateAudioTrack(
+		id: number,
+		update: UpdateAudioTrack
+	): Promise<AudioTrack | undefined>;
+	getAudioTracksByUserId(userId: number): Promise<AudioTrack[]>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private tracks: Map<number, AudioTrack>;
-  private userIdCounter: number;
-  private trackIdCounter: number;
+export class PostgresStorage implements IStorage {
+	async getUser(id: number): Promise<User | undefined> {
+		const result = await db.select().from(users).where(eq(users.id, id));
+		return result[0];
+	}
 
-  constructor() {
-    this.users = new Map();
-    this.tracks = new Map();
-    this.userIdCounter = 1;
-    this.trackIdCounter = 1;
-  }
+	async getUserByUsername(username: string): Promise<User | undefined> {
+		const result = await db
+			.select()
+			.from(users)
+			.where(eq(users.username, username));
+		return result[0];
+	}
 
-  async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
-  }
+	async createUser(insertUser: InsertUser): Promise<User> {
+		const result = await db.insert(users).values(insertUser).returning();
+		return result[0];
+	}
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
+	async getAudioTrack(id: number): Promise<AudioTrack | undefined> {
+		const result = await db
+			.select()
+			.from(audioTracks)
+			.where(eq(audioTracks.id, id));
+		return result[0];
+	}
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.userIdCounter++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
-  }
+	async createAudioTrack(track: InsertAudioTrack): Promise<AudioTrack> {
+		const result = await db.insert(audioTracks).values(track).returning();
+		return result[0];
+	}
 
-  async getAudioTrack(id: number): Promise<AudioTrack | undefined> {
-    return this.tracks.get(id);
-  }
+	async updateAudioTrack(
+		id: number,
+		update: UpdateAudioTrack
+	): Promise<AudioTrack | undefined> {
+		const result = await db
+			.update(audioTracks)
+			.set(update)
+			.where(eq(audioTracks.id, id))
+			.returning();
+		return result[0];
+	}
 
-  async createAudioTrack(track: InsertAudioTrack): Promise<AudioTrack> {
-    const id = this.trackIdCounter++;
-    const newTrack: AudioTrack = { 
-      ...track, 
-      id, 
-      extendedPath: null,
-      duration: null,
-      extendedDuration: null,
-      bpm: null,
-      key: null,
-      format: null,
-      bitrate: null,
-      status: "uploaded",
-      settings: null
-    };
-    this.tracks.set(id, newTrack);
-    return newTrack;
-  }
+	async getAudioTracksByUserId(userId: number): Promise<AudioTrack[]> {
+		return db.select().from(audioTracks).where(eq(audioTracks.userId, userId));
+	}
 
-  async updateAudioTrack(id: number, update: UpdateAudioTrack): Promise<AudioTrack | undefined> {
-    const track = this.tracks.get(id);
-    if (!track) return undefined;
-
-    const updatedTrack = { ...track, ...update };
-    this.tracks.set(id, updatedTrack);
-    return updatedTrack;
-  }
-
-  async getAudioTracksByUserId(userId: number): Promise<AudioTrack[]> {
-    return Array.from(this.tracks.values()).filter(
-      (track) => track.userId === userId
-    );
-  }
+	async deleteAllUserTracks(userId: number): Promise<void> {
+		await db.delete(audioTracks).where(eq(audioTracks.userId, userId));
+	}
 }
 
-export const storage = new MemStorage();
+export const storage = new PostgresStorage();

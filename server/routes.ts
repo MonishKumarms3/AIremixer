@@ -64,10 +64,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	const httpServer = createServer(app);
 
 	// Set up user for demo purposes
-	const demoUser = await storage.createUser({
-		username: "demo",
-		password: "password", // In a real app, this would be hashed
-	});
+	let demoUser = await storage.getUserByUsername("demo");
+	if (!demoUser) {
+		demoUser = await storage.createUser({
+			username: "demo",
+			password: "password", // In a real app, this would be hashed
+		});
+	}
 
 	// Upload audio file
 	app.post(
@@ -157,6 +160,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			return res
 				.status(500)
 				.json({ message: "Error retrieving tracks", error: error.message });
+		}
+	});
+
+	// Clear all tracks
+	app.delete("/api/tracks", async (req: Request, res: Response) => {
+		try {
+			const tracks = await storage.getAudioTracksByUserId(demoUser.id);
+
+			// Delete files
+			for (const track of tracks) {
+				if (fs.existsSync(track.originalPath)) {
+					fs.unlinkSync(track.originalPath);
+				}
+				if (track.extendedPaths) {
+					for (const path of track.extendedPaths) {
+						if (fs.existsSync(path)) {
+							fs.unlinkSync(path);
+						}
+					}
+				}
+			}
+
+			// Delete from database
+			await storage.deleteAllUserTracks(demoUser.id);
+
+			return res.json({ message: "All tracks cleared" });
+		} catch (error) {
+			console.error("Clear tracks error:", error);
+			return res
+				.status(500)
+				.json({ message: "Error clearing tracks", error: error.message });
 		}
 	});
 

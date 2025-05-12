@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import UploadSection from "@/components/UploadSection";
 import SettingsPanel from "@/components/SettingsPanel";
 import ProcessingInfo from "@/components/ProcessingInfo";
@@ -10,10 +11,42 @@ import CompletedMixCard from "@/components/CompletedMixCard";
 import { AudioTrack } from "@shared/schema";
 
 const Home: React.FC = () => {
-	const [currentTrackId, setCurrentTrackId] = useState<number | null>(null);
+	const { toast } = useToast();
+	const [currentTrackId, setCurrentTrackId] = useState<number | null>(() => {
+		const saved = localStorage.getItem("currentTrackId");
+		return saved ? parseInt(saved, 10) : null;
+	});
 	const [isProcessing, setIsProcessing] = useState(false);
-	const [isProcessed, setIsProcessed] = useState(false);
+	const [isProcessed, setIsProcessed] = useState(() => {
+		return localStorage.getItem("isProcessed") === "true";
+	});
 	const queryClient = useQueryClient();
+
+	// Persist state changes to localStorage
+	useEffect(() => {
+		if (currentTrackId) {
+			localStorage.setItem("currentTrackId", currentTrackId.toString());
+		} else {
+			localStorage.removeItem("currentTrackId");
+		}
+	}, [currentTrackId]);
+
+	useEffect(() => {
+		localStorage.setItem("isProcessed", isProcessed.toString());
+	}, [isProcessed]);
+
+	const { data: tracks } = useQuery<AudioTrack[]>({
+		queryKey: ["/api/tracks"],
+		staleTime: Infinity,
+		cacheTime: Infinity,
+		onSuccess: (tracks) => {
+			// Set the most recent track as current if none selected
+			if (!currentTrackId && tracks?.length > 0) {
+				setCurrentTrackId(tracks[0].id);
+				setIsProcessed(tracks[0].status === "completed");
+			}
+		},
+	});
 
 	const { data: track } = useQuery<AudioTrack>({
 		queryKey: currentTrackId ? [`/api/tracks/${currentTrackId}`] : ["no-track"],
@@ -67,6 +100,35 @@ const Home: React.FC = () => {
 				{/* Left column: Upload & Controls */}
 				<div className='lg:col-span-4 space-y-6'>
 					<UploadSection onUploadSuccess={handleUploadSuccess} />
+					<button
+						onClick={async () => {
+							if (
+								window.confirm(
+									"Are you sure you want to clear all tracks? This cannot be undone."
+								)
+							) {
+								try {
+									await fetch("/api/tracks", { method: "DELETE" });
+									queryClient.invalidateQueries({ queryKey: ["/api/tracks"] });
+									setCurrentTrackId(null);
+									setIsProcessed(false);
+									toast({
+										title: "Tracks Cleared",
+										description: "All tracks have been removed successfully.",
+									});
+								} catch (error) {
+									toast({
+										title: "Error",
+										description: "Failed to clear tracks.",
+										variant: "destructive",
+									});
+								}
+							}
+						}}
+						className='w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm flex items-center justify-center gap-2'>
+						<span className='material-icons text-sm'>delete</span>
+						Clear All Tracks
+					</button>
 
 					{isProcessing ? (
 						<ProcessingInfo
