@@ -23,17 +23,48 @@ const ProcessingInfo: React.FC<ProcessingInfoProps> = ({
 	onComplete,
 	onCancel,
 }) => {
+	const [isRegeneration, setIsRegeneration] = useState(false);
 	const [processingState, setProcessingState] = useState<ProcessingState>({
 		progress: 0,
 		status: "Initializing...",
 		steps: [
-			{ text: "Analyzing audio file structure", status: "current" },
+			{
+				text: isRegeneration
+					? "Re-analyzing audio structure"
+					: "Analyzing audio file structure",
+				status: "current",
+			},
 			{ text: "Detecting tempo and beats", status: "pending" },
-			{ text: "Separating audio components", status: "pending" },
-			{ text: "Creating extended sections", status: "pending" },
-			{ text: "Finalizing extended mix", status: "pending" },
+			{
+				text: isRegeneration
+					? "Re-separating audio components"
+					: "Separating audio components",
+				status: "pending",
+			},
+			{
+				text: isRegeneration
+					? "Re-creating extended sections"
+					: "Creating extended sections",
+				status: "pending",
+			},
+			{
+				text: isRegeneration
+					? "Finalizing new mix version"
+					: "Finalizing extended mix",
+				status: "pending",
+			},
 		],
 	});
+
+	// Check if this is a regeneration when component mounts
+	useEffect(() => {
+		const checkTrackStatus = async () => {
+			const response = await fetch(`/api/tracks/${trackId}`);
+			const track = await response.json();
+			setIsRegeneration(track.extendedPaths?.length > 0);
+		};
+		checkTrackStatus();
+	}, [trackId]);
 
 	const { toast } = useToast();
 
@@ -55,7 +86,8 @@ const ProcessingInfo: React.FC<ProcessingInfoProps> = ({
 				checkCount++;
 
 				// Simple state machine to update UI based on current processing stage
-				if (data.status === "processing") {
+				if (data.status === "processing" || data.status === "regenerate") {
+					const isRegeneration = data.status === "regenerate";
 					// Simulate progress based on check count as a percentage of expected total
 					const progressIncrement = 100 / (maxChecks * 0.8); // Target 80% of progress through polling
 					const newProgress = Math.min(80, checkCount * progressIncrement);

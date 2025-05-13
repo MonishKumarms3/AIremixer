@@ -28,7 +28,7 @@ export const audioTracks = pgTable("audio_tracks", {
 	key: text("key"),
 	format: text("format"),
 	bitrate: integer("bitrate"),
-	status: text("status").notNull().default("uploaded"),
+	status: text("status").notNull().default("uploaded"), // status can be: uploaded, processing, regenerate, completed, error
 	settings: jsonb("settings"),
 	versionCount: integer("version_count").notNull().default(1),
 	userId: integer("user_id").references(() => users.id),

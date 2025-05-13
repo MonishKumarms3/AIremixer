@@ -66,7 +66,7 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({
 		<>
 			<div className='border-b border-gray-200 mb-6'>
 				<ul className='flex -mb-px'>
-					{track?.status === "completed" ? (
+					{track?.status === "completed" || track?.status === "regenerate" ? (
 						<>
 							<li className='mr-4'>
 								<button
@@ -84,7 +84,8 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({
 									className={`inline-block pb-3 px-1 font-medium ${
 										activeTab === "extended"
 											? "text-primary border-b-2 border-primary"
-											: track?.status === "completed"
+											: track?.status === "completed" ||
+											  track?.status === "regenerate"
 											? "text-gray-500 hover:text-gray-700"
 											: "text-white"
 									}`}
@@ -105,13 +106,17 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({
 
 			<div
 				className={`tab-content ${activeTab === "original" ? "" : "hidden"}`}>
-				{track && <TrackView track={track} type='original' />}
+				{track && <TrackView track={track} type='original' version={0} />}
 			</div>
 
 			<div
 				className={`tab-content ${activeTab === "extended" ? "" : "hidden"}`}>
 				{isProcessed && track ? (
-					<TrackView track={track} type='extended' />
+					<TrackView
+						track={track}
+						type='extended'
+						version={(track.extendedPaths?.length || 1) - 1}
+					/>
 				) : (
 					renderEmptyState("extended")
 				)}
@@ -148,9 +153,17 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({
 								<div>
 									<p className='text-sm font-medium mb-1'>
 										Extended (
-										{track.extendedDuration
-											? `${Math.floor(track.extendedDuration / 60)}:${(
-													track.extendedDuration % 60
+										{track.extendedDurations?.[
+											(track.extendedPaths?.length || 1) - 1
+										]
+											? `${Math.floor(
+													track.extendedDurations[
+														(track.extendedPaths?.length || 1) - 1
+													] / 60
+											  )}:${(
+													track.extendedDurations[
+														(track.extendedPaths?.length || 1) - 1
+													] % 60
 											  )
 													.toString()
 													.padStart(2, "0")}`
@@ -175,7 +188,6 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({
 								<div>
 									<p className='text-sm font-medium mb-1'>Original</p>
 									<div className='waveform-container h-20 bg-gray-900 rounded-lg'>
-										{/* Waveform visualization would go here */}
 										<div className='waveform'>
 											<div className='waveform-bars'>
 												{Array(120)
@@ -199,7 +211,6 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({
 								<div>
 									<p className='text-sm font-medium mb-1'>Extended</p>
 									<div className='waveform-container h-20 bg-gray-900 rounded-lg'>
-										{/* Waveform visualization would go here */}
 										<div className='waveform'>
 											<div className='waveform-bars'>
 												{Array(150)
@@ -226,7 +237,9 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({
 						<div className='mt-4 flex justify-center'>
 							{track && track.status === "completed" && (
 								<a
-									href={`/api/tracks/${track.id}/download`}
+									href={`/api/tracks/${track.id}/download?version=${
+										(track.extendedPaths?.length || 1) - 1
+									}`}
 									className='inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary'
 									download>
 									<span className='material-icons text-sm mr-1'>download</span>

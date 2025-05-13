@@ -16,10 +16,13 @@ const Home: React.FC = () => {
 		const saved = localStorage.getItem("currentTrackId");
 		return saved ? parseInt(saved, 10) : null;
 	});
-	const [isProcessing, setIsProcessing] = useState(false);
+	const [isProcessing, setIsProcessing] = useState(() => {
+		return localStorage.getItem("isProcessing") === "true";
+	});
 	const [isProcessed, setIsProcessed] = useState(() => {
 		return localStorage.getItem("isProcessed") === "true";
 	});
+
 	const queryClient = useQueryClient();
 
 	// Persist state changes to localStorage
@@ -34,6 +37,37 @@ const Home: React.FC = () => {
 	useEffect(() => {
 		localStorage.setItem("isProcessed", isProcessed.toString());
 	}, [isProcessed]);
+
+	// Check processing status on initial load
+	useEffect(() => {
+		const checkInitialStatus = async () => {
+			if (currentTrackId && isProcessing) {
+				try {
+					const response = await fetch(`/api/tracks/${currentTrackId}/status`);
+					const data = await response.json();
+
+					if (data.status === "completed") {
+						setIsProcessing(false);
+						setIsProcessed(true);
+						localStorage.setItem("isProcessing", "false");
+						localStorage.setItem("isProcessed", "true");
+					} else if (data.status === "processing") {
+						setIsProcessing(true);
+						localStorage.setItem("isProcessing", "true");
+					}
+				} catch (error) {
+					console.error("Error checking initial status:", error);
+				}
+			}
+		};
+
+		checkInitialStatus();
+	}, [currentTrackId]);
+
+	// Persist processing state
+	useEffect(() => {
+		localStorage.setItem("isProcessing", isProcessing.toString());
+	}, [isProcessing]);
 
 	const { data: tracks } = useQuery<AudioTrack[]>({
 		queryKey: ["/api/tracks"],

@@ -28,7 +28,7 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 			: `${track.originalFilename.replace(/\.[^/.]+$/, "")} (Extended Mix v${
 					version + 1
 			  })${track.originalFilename.match(/\.[^/.]+$/)?.[0] || ""}`;
-
+	console.log(track);
 	const displayDuration =
 		type === "original"
 			? track.duration || 0
@@ -340,16 +340,11 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 													}
 													setIsProcessing(false);
 
-													await queryClient.setQueryData(
-														[`/api/tracks/${track.id}`],
-														updatedTrack
-													);
+													// Refresh and update track data
 													await queryClient.invalidateQueries({
 														queryKey: [`/api/tracks/${track.id}`],
 													});
-													await queryClient.refetchQueries({
-														queryKey: [`/api/tracks/${track.id}`],
-													});
+
 													toast({
 														title: "Success",
 														description:
@@ -357,7 +352,10 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 														duration: 5000,
 													});
 													return true;
-												} else if (data.status === "processing") {
+												} else if (
+													data.status === "processing" ||
+													data.status === "regenerate"
+												) {
 													return false;
 												} else {
 													throw new Error("Processing failed");
@@ -380,7 +378,9 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 														duration: 5000,
 													});
 												}
-											}, 2000);
+											}, 1000);
+
+											return () => clearInterval(intervalId);
 										} catch (error) {
 											console.error("Regeneration error:", error);
 											toast({

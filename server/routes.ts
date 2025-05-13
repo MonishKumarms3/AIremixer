@@ -220,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Update track status and settings
 			await storage.updateAudioTrack(id, {
-				status: "processing",
+				status: track.extendedPaths?.length ? "regenerate" : "processing",
 				settings: settings,
 			});
 
