@@ -51,7 +51,10 @@ const Home: React.FC = () => {
 						setIsProcessed(true);
 						localStorage.setItem("isProcessing", "false");
 						localStorage.setItem("isProcessed", "true");
-					} else if (data.status === "processing") {
+					} else if (
+						data.status === "processing" ||
+						data.status === "regenerate"
+					) {
 						setIsProcessing(true);
 						localStorage.setItem("isProcessing", "true");
 					}

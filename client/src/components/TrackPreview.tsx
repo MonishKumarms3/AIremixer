@@ -124,7 +124,7 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({
 
 			<div
 				className={`tab-content ${activeTab === "comparison" ? "" : "hidden"}`}>
-				{isProcessed && track ? (
+				{(isProcessed || track?.extendedPaths?.length > 0) && track ? (
 					<div className='space-y-6'>
 						<div>
 							<h4 className='font-medium mb-2'>Track Structure Comparison</h4>

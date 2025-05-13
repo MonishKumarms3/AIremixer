@@ -17,9 +17,16 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [currentTime, setCurrentTime] = useState(0);
 	const [duration, setDuration] = useState(0);
-	const [isProcessing, setIsProcessing] = useState(false);
+	const [isProcessing, setIsProcessing] = useState(() => {
+		return (
+			localStorage.getItem(`processing_${track.id}`) === "processing" ||
+			localStorage.getItem(`processing_${track.id}`) === "regenerate"
+		);
+	});
+
 	const audioRef = useRef<HTMLAudioElement>(null);
 	const progressIntervalRef = useRef<number>();
+	const statusIntervalRef = useRef<number>(); // Added ref for status polling interval
 	const { toast } = useToast();
 
 	const displayTitle =
@@ -39,6 +46,101 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 	} • ${formatDuration(displayDuration)} ${
 		track.bpm ? `• ${track.bpm} BPM` : ""
 	}`;
+
+	// Initial status check effect
+	useEffect(() => {
+		if (isProcessing) {
+			const checkInitialStatus = async () => {
+				try {
+					const response = await fetch(`/api/tracks/${track.id}/status`);
+					const data = await response.json();
+					if (data.status === "completed") {
+						setIsProcessing(false);
+						localStorage.removeItem(`processing_${track.id}`);
+						queryClient.invalidateQueries({
+							queryKey: [`/api/tracks/${track.id}`],
+						});
+					}
+				} catch (error) {
+					console.error("Error checking status:", error);
+				}
+			};
+			checkInitialStatus();
+		}
+	}, [track.id]);
+
+	// Status polling effect
+	useEffect(() => {
+		if (isProcessing) {
+			const pollStatus = async () => {
+				try {
+					const response = await fetch(`/api/tracks/${track.id}/status`, {
+						headers: {
+							"Cache-Control": "no-cache",
+							Pragma: "no-cache",
+						},
+					});
+
+					if (!response.ok) throw new Error("Status check failed");
+					const data = await response.json();
+
+					if (data.status === "processing" || data.status === "regenerate") {
+						localStorage.setItem(`processing_${track.id}`, data.status);
+					} else if (data.status === "completed") {
+						setIsProcessing(false);
+						await queryClient.invalidateQueries({
+							queryKey: [`/api/tracks/${track.id}`],
+						});
+						localStorage.removeItem(`processing_${track.id}`);
+
+						// Clear the interval
+						if (statusIntervalRef.current) {
+							clearInterval(statusIntervalRef.current);
+							statusIntervalRef.current = undefined;
+						}
+
+						toast({
+							title: "Success",
+							description: "Track processing completed!",
+							duration: 3000,
+						});
+					} else if (data.status === "error") {
+						setIsProcessing(false);
+						localStorage.removeItem(`processing_${track.id}`);
+
+						// Clear the interval
+						if (statusIntervalRef.current) {
+							clearInterval(statusIntervalRef.current);
+							statusIntervalRef.current = undefined;
+						}
+
+						toast({
+							title: "Error",
+							description: "Processing failed",
+							variant: "destructive",
+							duration: 5000,
+						});
+					}
+				} catch (error) {
+					console.error("Error in status check:", error);
+				}
+			};
+
+			// Initial poll
+			pollStatus();
+
+			// Set up polling interval
+			statusIntervalRef.current = window.setInterval(pollStatus, 2000);
+
+			// Return cleanup function
+			return () => {
+				if (statusIntervalRef.current) {
+					clearInterval(statusIntervalRef.current);
+					statusIntervalRef.current = undefined;
+				}
+			};
+		}
+	}, [isProcessing, track.id, toast]);
 
 	useEffect(() => {
 		if (audioRef.current) {
@@ -115,6 +217,43 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 
 		audioRef.current.currentTime = newTime;
 		setCurrentTime(newTime);
+	};
+
+	const handleRegenerate = async () => {
+		try {
+			setIsProcessing(true);
+			const processResponse = await fetch(`/api/tracks/${track.id}/process`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(track.settings),
+			});
+
+			if (!processResponse.ok) {
+				throw new Error("Failed to start regeneration");
+			}
+
+			// Initial check to update localStorage
+			const initialStatusResponse = await fetch(
+				`/api/tracks/${track.id}/status`
+			);
+			if (initialStatusResponse.ok) {
+				const data = await initialStatusResponse.json();
+				localStorage.setItem(`processing_${track.id}`, data.status);
+			}
+
+			// The polling will now be handled by the useEffect
+		} catch (error) {
+			console.error("Regeneration error:", error);
+			toast({
+				title: "Error",
+				description: "Failed to regenerate extended mix",
+				variant: "destructive",
+				duration: 5000,
+			});
+			setIsProcessing(false);
+		}
 	};
 
 	return (
@@ -199,7 +338,9 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 										return (
 											<div
 												key={i}
-												className={`waveform-bar transition-colors duration-300`}
+												className={
+													"waveform-bar transition-colors duration-300"
+												}
 												style={{
 													height: `${Math.floor(Math.random() * 70 + 10)}px`,
 													width: "100%",
@@ -271,7 +412,7 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 				</div>
 			)}
 
-			{type === "extended" && track.status === "completed" && (
+			{type === "extended" && track.extendedPaths?.length > 0 && (
 				<div className='mt-4'>
 					<div className='flex items-center gap-4 mb-2 text-xs'>
 						<div className='flex items-center gap-1'>
@@ -295,103 +436,7 @@ const TrackView: React.FC<TrackViewProps> = ({ track, type, version }) => {
 								</div>
 								<button
 									className='inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50'
-									onClick={async () => {
-										try {
-											setIsProcessing(true);
-											const processResponse = await fetch(
-												`/api/tracks/${track.id}/process`,
-												{
-													method: "POST",
-													headers: {
-														"Content-Type": "application/json",
-													},
-													body: JSON.stringify(track.settings),
-												}
-											);
-
-											if (!processResponse.ok) {
-												throw new Error("Failed to start regeneration");
-											}
-
-											const checkStatus = async () => {
-												const statusResponse = await fetch(
-													`/api/tracks/${track.id}/status`
-												);
-												const data = await statusResponse.json();
-
-												if (data.status === "completed") {
-													const updatedTrackResponse = await fetch(
-														`/api/tracks/${track.id}`,
-														{
-															headers: {
-																"Cache-Control": "no-cache",
-																Pragma: "no-cache",
-															},
-														}
-													);
-													const updatedTrack =
-														await updatedTrackResponse.json();
-													const newVersion =
-														(updatedTrack.extendedPaths?.length || 1) - 1;
-
-													if (audioRef.current) {
-														audioRef.current.src = `/api/audio/${track.id}/extended?version=${newVersion}`;
-														await audioRef.current.load();
-													}
-													setIsProcessing(false);
-
-													// Refresh and update track data
-													await queryClient.invalidateQueries({
-														queryKey: [`/api/tracks/${track.id}`],
-													});
-
-													toast({
-														title: "Success",
-														description:
-															"New extended mix generated successfully!",
-														duration: 5000,
-													});
-													return true;
-												} else if (
-													data.status === "processing" ||
-													data.status === "regenerate"
-												) {
-													return false;
-												} else {
-													throw new Error("Processing failed");
-												}
-											};
-
-											const intervalId = setInterval(async () => {
-												try {
-													const isCompleted = await checkStatus();
-													if (isCompleted) {
-														clearInterval(intervalId);
-													}
-												} catch (error) {
-													clearInterval(intervalId);
-													setIsProcessing(false);
-													toast({
-														title: "Error",
-														description: "Failed to regenerate extended mix",
-														variant: "destructive",
-														duration: 5000,
-													});
-												}
-											}, 1000);
-
-											return () => clearInterval(intervalId);
-										} catch (error) {
-											console.error("Regeneration error:", error);
-											toast({
-												title: "Error",
-												description: "Failed to regenerate extended mix",
-												variant: "destructive",
-												duration: 5000,
-											});
-											setIsProcessing(false);
-										}
-									}}
+									onClick={handleRegenerate}
 									disabled={
 										track.status === "processing" ||
 										isProcessing ||
