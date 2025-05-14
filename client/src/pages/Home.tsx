@@ -137,35 +137,39 @@ const Home: React.FC = () => {
 				{/* Left column: Upload & Controls */}
 				<div className='lg:col-span-4 space-y-6'>
 					<UploadSection onUploadSuccess={handleUploadSuccess} />
-					<button
-						onClick={async () => {
-							if (
-								window.confirm(
-									"Are you sure you want to clear all tracks? This cannot be undone."
-								)
-							) {
-								try {
-									await fetch("/api/tracks", { method: "DELETE" });
-									queryClient.invalidateQueries({ queryKey: ["/api/tracks"] });
-									setCurrentTrackId(null);
-									setIsProcessed(false);
-									toast({
-										title: "Tracks Cleared",
-										description: "All tracks have been removed successfully.",
-									});
-								} catch (error) {
-									toast({
-										title: "Error",
-										description: "Failed to clear tracks.",
-										variant: "destructive",
-									});
+					{currentTrackId && (
+						<button
+							onClick={async () => {
+								if (
+									window.confirm(
+										"Are you sure you want to clear all tracks? This cannot be undone."
+									)
+								) {
+									try {
+										await fetch("/api/tracks", { method: "DELETE" });
+										queryClient.invalidateQueries({
+											queryKey: ["/api/tracks"],
+										});
+										setCurrentTrackId(null);
+										setIsProcessed(false);
+										toast({
+											title: "Tracks Cleared",
+											description: "All tracks have been removed successfully.",
+										});
+									} catch (error) {
+										toast({
+											title: "Error",
+											description: "Failed to clear tracks.",
+											variant: "destructive",
+										});
+									}
 								}
-							}
-						}}
-						className='w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm flex items-center justify-center gap-2'>
-						<span className='material-icons text-sm'>delete</span>
-						Clear All Tracks
-					</button>
+							}}
+							className='w-full bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm flex items-center justify-center gap-2'>
+							<span className='material-icons text-sm'>delete</span>
+							Clear All Tracks
+						</button>
+					)}
 
 					{isProcessing ? (
 						<ProcessingInfo
