@@ -8,7 +8,6 @@ import tempfile
 import subprocess
 import logging
 import random
-import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -156,12 +155,6 @@ def pick_loudest_bars(stem, beats_ms, bars=4, beats_per_bar=4):
     start_ms = int(beats_ms[pick_start])
     end_ms = int(beats_ms[pick_start + window])
     return stem[start_ms:end_ms]
-
-
-import os
-import json
-import random
-from pydub import AudioSegment
 
 def create_extended_mix(components, output_path, intro_bars, outro_bars, preserve_vocals, tempo, beat_times, main_song):
     logger.info(f"Creating extended mix with {intro_bars} bars intro and {outro_bars} bars outro")
